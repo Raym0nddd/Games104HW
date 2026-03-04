@@ -31,7 +31,9 @@ namespace Pilot
 
     private:
         void        onFileContentItemClicked(EditorFileNode* node);
+        void        drawSelectedEntity();
         void        drawSelectedEntityAxis();
+        void        drawSelectedEntityOutline();
         void        moveEntity(float     new_mouse_pos_x,
                                float     new_mouse_pos_y,
                                float     last_mouse_pos_x,

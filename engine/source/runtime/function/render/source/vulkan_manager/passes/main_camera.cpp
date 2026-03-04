@@ -138,12 +138,12 @@ namespace Pilot
         backup_even_color_attachment_description.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
         backup_even_color_attachment_description.finalLayout    = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkAttachmentDescription& depth_attachment_description = attachments[_main_camera_pass_depth];
-        depth_attachment_description.format                   = m_p_vulkan_context->_depth_image_format;
+        VkAttachmentDescription& depth_attachment_description = attachments[_main_camera_pass_depth_stencil];
+        depth_attachment_description.format                   = m_p_vulkan_context->_depth_stencil_image_format;
         depth_attachment_description.samples                  = VK_SAMPLE_COUNT_1_BIT;
         depth_attachment_description.loadOp                   = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depth_attachment_description.storeOp                  = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depth_attachment_description.stencilLoadOp            = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depth_attachment_description.stencilLoadOp            = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depth_attachment_description.stencilStoreOp           = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depth_attachment_description.initialLayout            = VK_IMAGE_LAYOUT_UNDEFINED;
         depth_attachment_description.finalLayout              = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -272,6 +272,26 @@ namespace Pilot
         color_grading_pass.pDepthStencilAttachment = NULL;
         color_grading_pass.preserveAttachmentCount = 0;
         color_grading_pass.pPreserveAttachments    = NULL;
+        
+        // Outline Pass Subpass here
+        VkAttachmentReference outline_pass_color_attachment_reference = {};
+        outline_pass_color_attachment_reference.attachment =     // write odd backup buffer, too
+            &backup_odd_color_attachment_description - attachments;
+        outline_pass_color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+        VkAttachmentReference outline_pass_depth_stencil_attachment_reference {};
+        forward_lighting_pass_depth_attachment_reference.attachment = &depth_attachment_description - attachments;
+        forward_lighting_pass_depth_attachment_reference.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+        VkSubpassDescription& outline_pass = subpasses[_main_camera_subpass_forward_lighting];
+        forward_lighting_pass.pipelineBindPoint     = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        forward_lighting_pass.inputAttachmentCount  = 0U;
+        forward_lighting_pass.pInputAttachments     = NULL;
+        forward_lighting_pass.colorAttachmentCount  = 1;
+        forward_lighting_pass.pColorAttachments       = &outline_pass_color_attachment_reference;
+        forward_lighting_pass.pDepthStencilAttachment = &outline_pass_depth_stencil_attachment_reference;
+        forward_lighting_pass.preserveAttachmentCount = 0;
+        forward_lighting_pass.pPreserveAttachments    = NULL;
 
         VkAttachmentReference ui_pass_color_attachment_reference {};
         ui_pass_color_attachment_reference.attachment = &backup_even_color_attachment_description - attachments;
@@ -312,7 +332,7 @@ namespace Pilot
         combine_ui_pass.preserveAttachmentCount = 0;
         combine_ui_pass.pPreserveAttachments    = NULL;
 
-        VkSubpassDependency dependencies[7] = {};
+        VkSubpassDependency dependencies[8] = {};
 
         VkSubpassDependency& deferred_lighting_pass_depend_on_shadow_map_pass = dependencies[0];
         deferred_lighting_pass_depend_on_shadow_map_pass.srcSubpass           = VK_SUBPASS_EXTERNAL;
@@ -374,9 +394,23 @@ namespace Pilot
         color_grading_pass_depend_on_tone_mapping_pass.dstAccessMask =
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
         color_grading_pass_depend_on_tone_mapping_pass.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
+        
+        VkSubpassDependency& outline_pass_depend_on_color_grading_pass = dependencies[5];
+        outline_pass_depend_on_color_grading_pass.srcSubpass           = _main_camera_subpass_color_grading;
+        outline_pass_depend_on_color_grading_pass.dstSubpass           = _main_camera_subpass_outline;
+        outline_pass_depend_on_color_grading_pass.srcStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        outline_pass_depend_on_color_grading_pass.dstStageMask =
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        outline_pass_depend_on_color_grading_pass.srcAccessMask =
+            VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        outline_pass_depend_on_color_grading_pass.dstAccessMask =
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+        outline_pass_depend_on_color_grading_pass.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-        VkSubpassDependency& ui_pass_depend_on_color_grading_pass = dependencies[5];
-        ui_pass_depend_on_color_grading_pass.srcSubpass           = _main_camera_subpass_color_grading;
+        // TODO: depend on outline pass
+        VkSubpassDependency& ui_pass_depend_on_color_grading_pass = dependencies[6];
+        ui_pass_depend_on_color_grading_pass.srcSubpass           = _main_camera_subpass_outline;
         ui_pass_depend_on_color_grading_pass.dstSubpass           = _main_camera_subpass_ui;
         ui_pass_depend_on_color_grading_pass.srcStageMask =
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
@@ -388,7 +422,7 @@ namespace Pilot
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
         ui_pass_depend_on_color_grading_pass.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-        VkSubpassDependency& combine_ui_pass_depend_on_ui_pass = dependencies[6];
+        VkSubpassDependency& combine_ui_pass_depend_on_ui_pass = dependencies[7];
         combine_ui_pass_depend_on_ui_pass.srcSubpass           = _main_camera_subpass_ui;
         combine_ui_pass_depend_on_ui_pass.dstSubpass           = _main_camera_subpass_combine_ui;
         combine_ui_pass_depend_on_ui_pass.srcStageMask =
@@ -858,12 +892,19 @@ namespace Pilot
             depth_stencil_create_info.depthWriteEnable = VK_TRUE;
             depth_stencil_create_info.depthCompareOp   = VK_COMPARE_OP_LESS;
             depth_stencil_create_info.depthBoundsTestEnable = VK_FALSE;
-            depth_stencil_create_info.stencilTestEnable     = VK_FALSE;
+            depth_stencil_create_info.stencilTestEnable     = VK_TRUE;
+            depth_stencil_create_info.front.compareOp      = VK_COMPARE_OP_ALWAYS;
+            depth_stencil_create_info.front.compareMask     = 0x00;
+            depth_stencil_create_info.front.writeMask       = 0xff;
+            depth_stencil_create_info.front.reference       = 0;
+            depth_stencil_create_info.front.passOp          = VK_STENCIL_OP_REPLACE;
+            depth_stencil_create_info.back = depth_stencil_create_info.front;
 
-            VkDynamicState                   dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
+            // use dynamic stencil reference for selected mesh highlighting in editor
+            VkDynamicState                   dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR, VK_DYNAMIC_STATE_STENCIL_REFERENCE};
             VkPipelineDynamicStateCreateInfo dynamic_state_create_info {};
             dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-            dynamic_state_create_info.dynamicStateCount = 2;
+            dynamic_state_create_info.dynamicStateCount = 3;
             dynamic_state_create_info.pDynamicStates    = dynamic_states;
 
             VkGraphicsPipelineCreateInfo pipelineInfo {};
@@ -1962,11 +2003,11 @@ namespace Pilot
         gbuffer_albedo_input_attachment_info.imageView   = _framebuffer.attachments[_main_camera_pass_gbuffer_c].view;
         gbuffer_albedo_input_attachment_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        VkDescriptorImageInfo depth_input_attachment_info = {};
-        depth_input_attachment_info.sampler =
+        VkDescriptorImageInfo depth_stencil_input_attachment_info = {};
+        depth_stencil_input_attachment_info.sampler =
             PVulkanUtil::getOrCreateNearestSampler(m_p_vulkan_context->_physical_device, m_p_vulkan_context->_device);
-        depth_input_attachment_info.imageView   = m_p_vulkan_context->_depth_image_view;
-        depth_input_attachment_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        depth_stencil_input_attachment_info.imageView   = m_p_vulkan_context->_depth_stencil_image_view;
+        depth_stencil_input_attachment_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         VkWriteDescriptorSet deferred_lighting_descriptor_writes_info[4];
 
@@ -2018,7 +2059,7 @@ namespace Pilot
         depth_descriptor_input_attachment_write_info.dstArrayElement = 0;
         depth_descriptor_input_attachment_write_info.descriptorType  = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
         depth_descriptor_input_attachment_write_info.descriptorCount = 1;
-        depth_descriptor_input_attachment_write_info.pImageInfo      = &depth_input_attachment_info;
+        depth_descriptor_input_attachment_write_info.pImageInfo      = &depth_stencil_input_attachment_info;
 
         vkUpdateDescriptorSets(m_p_vulkan_context->_device,
                                sizeof(deferred_lighting_descriptor_writes_info) /
@@ -2041,7 +2082,7 @@ namespace Pilot
                 _framebuffer.attachments[_main_camera_pass_gbuffer_c].view,
                 _framebuffer.attachments[_main_camera_pass_backup_buffer_odd].view,
                 _framebuffer.attachments[_main_camera_pass_backup_buffer_even].view,
-                m_p_vulkan_context->_depth_image_view,
+                m_p_vulkan_context->_depth_stencil_image_view,
                 m_p_vulkan_context->_swapchain_imageviews[i]};
 
             VkFramebufferCreateInfo framebuffer_create_info {};
@@ -2106,7 +2147,7 @@ namespace Pilot
             clear_values[_main_camera_pass_gbuffer_c].color          = {{0.0f, 0.0f, 0.0f, 0.0f}};
             clear_values[_main_camera_pass_backup_buffer_odd].color  = {{0.0f, 0.0f, 0.0f, 1.0f}};
             clear_values[_main_camera_pass_backup_buffer_even].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clear_values[_main_camera_pass_depth].depthStencil       = {1.0f, 0};
+            clear_values[_main_camera_pass_depth_stencil].depthStencil       = {1.0f, 0};
             clear_values[_main_camera_pass_swap_chain_image].color   = {{0.0f, 0.0f, 0.0f, 1.0f}};
             renderpass_begin_info.clearValueCount                    = (sizeof(clear_values) / sizeof(clear_values[0]));
             renderpass_begin_info.pClearValues                       = clear_values;
@@ -2297,6 +2338,7 @@ namespace Pilot
     {
         struct PMeshNode
         {
+            size_t    node_id;  // same as PVulkanMeshNode
             glm::mat4 model_matrix;
             glm::mat4 joint_matrices[m_mesh_vertex_blending_max_joint_count];
             bool      enable_vertex_blending;
@@ -2313,6 +2355,7 @@ namespace Pilot
             PMeshNode temp;
             temp.model_matrix           = node.model_matrix;
             temp.enable_vertex_blending = node.enable_vertex_blending;
+            temp.node_id                = node.node_id;
             if (node.enable_vertex_blending)
             {
                 for (uint32_t i = 0; i < m_mesh_vertex_blending_max_joint_count; ++i)
@@ -2374,7 +2417,7 @@ namespace Pilot
                                                          NULL);
 
             // TODO: render from near to far
-
+            
             for (auto& pair2 : mesh_instanced)
             {
                 VulkanMesh& mesh       = (*pair2.first);
@@ -2419,6 +2462,14 @@ namespace Pilot
                              drawcall_max_instance_count) ?
                                 (total_instance_count - drawcall_max_instance_count * drawcall_index) :
                                 drawcall_max_instance_count;
+                        
+                        // FIXME: since InstanceDraw does not support different stencil reference for different instance, 
+                        // here we set stencil reference according to the first instance of current drawcall, which could bring some bugs
+                        vkCmdSetStencilReference(
+                            m_command_info._current_command_buffer,
+                            VK_STENCIL_FRONT_AND_BACK, 
+                            mesh_nodes[0].node_id == m_visiable_nodes.p_selected_mesh_node->node_id ? 1 : 0
+                            );
 
                         // per drawcall storage buffer
                         uint32_t perdrawcall_dynamic_offset =

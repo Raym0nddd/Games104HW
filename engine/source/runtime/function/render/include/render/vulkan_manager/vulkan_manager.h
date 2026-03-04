@@ -119,6 +119,7 @@ namespace Pilot
         PMainCameraPass             m_main_camera_pass;
         PColorGradingPass           m_color_grading_pass;
         PToneMappingPass            m_tone_mapping_pass;
+        POutlinePass                m_outline_pass;
         PUIPass                     m_ui_pass;
         PCombineUIPass              m_combine_ui_pass;
         PPickPass                   m_mouse_pick_pass;
@@ -186,6 +187,7 @@ namespace Pilot
         std::vector<PVulkanMeshNode>              m_point_lights_visible_mesh_nodes;
         std::vector<PVulkanMeshNode>              m_main_camera_visible_mesh_nodes;
         PVulkanAxisNode                           m_axis_node;
+        PVulkanMeshNode                           m_selected_mesh_node;
         std::vector<PVulkanParticleBillboardNode> m_main_camera_visible_particlebillboard_nodes;
 
         // data uploading functions

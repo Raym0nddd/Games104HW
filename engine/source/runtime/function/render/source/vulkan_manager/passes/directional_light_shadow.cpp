@@ -52,7 +52,7 @@ namespace Pilot
                                                                         1);
 
         // depth
-        _framebuffer.attachments[1].format = m_p_vulkan_context->_depth_image_format;
+        _framebuffer.attachments[1].format = m_p_vulkan_context->_depth_stencil_image_format;
         PVulkanUtil::createImage(m_p_vulkan_context->_physical_device,
                                  m_p_vulkan_context->_device,
                                  m_directional_light_shadow_map_dimension,

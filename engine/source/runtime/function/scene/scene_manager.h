@@ -48,7 +48,9 @@ namespace Pilot
 
         // for EditorUI
         void         setAxisMesh(std::vector<RenderMesh>& axis_meshes);
+        void         setSelectedGoId(size_t go_id);
         const size_t getGObjectIDByMeshID(size_t mesh_id) const;
+        const size_t getMeshIDByGObjectID(size_t go_id) const;
 
     private:
         std::vector<GameObjectDesc> m_go_descs;

@@ -22,6 +22,7 @@ namespace Pilot
         std::vector<PVulkanMeshNode>*              p_point_lights_visible_mesh_nodes;
         std::vector<PVulkanMeshNode>*              p_main_camera_visible_mesh_nodes;
         PVulkanAxisNode*                           p_axis_node;
+        PVulkanMeshNode*                           p_selected_mesh_node;
         std::vector<PVulkanParticleBillboardNode>* p_main_camera_visible_particlebillboard_nodes;
     };
 

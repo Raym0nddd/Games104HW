@@ -1,6 +1,7 @@
 #pragma once
 
 #include "runtime/core/math/math_headers.h"
+#include "runtime/core/base/macro.h"
 
 #include "render/light.h"
 #include "render/material.h"
@@ -177,6 +178,7 @@ namespace Pilot
         std::vector<Material>&         getMaterials() { return m_materials; }
         const std::vector<RenderMesh>& getAxisMeshes() const { return m_axis; }
         std::vector<RenderMesh>&       getAxisMeshs() { return m_axis; }
+        size_t                         getSelectedMeshID() const { return m_selected_mesh_index; }
         void                           clear()
         {
             clearMeshes();
@@ -188,6 +190,8 @@ namespace Pilot
         void clearMaterials() { m_materials.clear(); }
         void clearAxis() { m_axis.clear(); }
         void setAxisMesh(const std::vector<RenderMesh>& axis_meshes) { m_axis = axis_meshes; }
+        void setSelectedMesh(size_t mesh_index) { m_selected_mesh_index = mesh_index; }
+        void clearSelectedMesh() { m_selected_mesh_index = PILOT_INVALID_MESH_INSTANCE_ID; }
 
     private:
         std::mutex m_scene_mutex;
@@ -195,6 +199,8 @@ namespace Pilot
         std::vector<RenderMesh> m_meshes;
         std::vector<Material>   m_materials;
         std::vector<RenderMesh> m_axis;
+        
+        size_t m_selected_mesh_index {static_cast<size_t>(-1)};
     };
 
     class UIState

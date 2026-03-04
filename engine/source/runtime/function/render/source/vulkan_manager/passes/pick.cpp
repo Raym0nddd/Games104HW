@@ -64,7 +64,7 @@ namespace Pilot
         color_attachment_description.finalLayout    = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 
         VkAttachmentDescription depth_attachment_description {};
-        depth_attachment_description.format         = m_p_vulkan_context->_depth_image_format;
+        depth_attachment_description.format         = m_p_vulkan_context->_depth_stencil_image_format;
         depth_attachment_description.samples        = VK_SAMPLE_COUNT_1_BIT;
         depth_attachment_description.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
         depth_attachment_description.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -106,7 +106,7 @@ namespace Pilot
     }
     void PPickPass::setupFramebuffer()
     {
-        VkImageView attachments[2] = {_framebuffer.attachments[0].view, m_p_vulkan_context->_depth_image_view};
+        VkImageView attachments[2] = {_framebuffer.attachments[0].view, m_p_vulkan_context->_depth_stencil_image_view};
 
         VkFramebufferCreateInfo framebuffer_create_info {};
         framebuffer_create_info.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;

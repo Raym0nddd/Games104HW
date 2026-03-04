@@ -151,7 +151,7 @@ void Pilot::PVulkanManager::culling(class Scene&                scene,
         }
     }
 
-    // Main Camera Mesh
+    // Main Camera Mesh && Selected Mesh
     {
         m_main_camera_visible_mesh_nodes.clear();
 
@@ -159,6 +159,9 @@ void Pilot::PVulkanManager::culling(class Scene&                scene,
         Matrix4x4 view_matrix      = camera->getViewMatrix();
         Matrix4x4 proj_matrix      = camera->getPersProjMatrix();
         Matrix4x4 proj_view_matrix = (proj_matrix * view_matrix);
+        
+        size_t selected_mesh_id = scene.getSelectedMeshID();
+        m_selected_mesh_node.node_id = selected_mesh_id;
 
         cluster_frustum_t f =
             cluster_frustum_create_from_mat(GLMUtil::fromMat4x4(proj_view_matrix), -1.0, 1.0, -1.0, 1.0, 0.0, 1.0);
@@ -212,6 +215,12 @@ void Pilot::PVulkanManager::culling(class Scene&                scene,
                 material_handle.m_image_handle3 = material.m_occlusionTexture;
                 material_handle.m_image_handle4 = material.m_emissiveTexture;
                 release_handles.material_handles.push_back(material_handle);
+                
+                // Selected Mesh
+                if (selected_mesh_id != PILOT_INVALID_MESH_INSTANCE_ID && selected_mesh_id == mesh.m_instance_id)
+                {
+                    m_selected_mesh_node = temp_node;
+                }
             }
         }
     }

@@ -532,6 +532,27 @@ namespace Pilot
             m_scene->unlock();
         }
     }
+
+    void SceneManager::setSelectedGoId(size_t go_id)
+    {
+        if (m_scene)
+        {
+            m_scene->lock();
+            
+            if (go_id != PILOT_INVALID_GOBJECT_ID)
+            {
+                size_t mesh_id = getMeshIDByGObjectID(go_id);
+                m_scene->setSelectedMesh(mesh_id);
+            }
+            else
+            {
+                m_scene->clearSelectedMesh();
+            }
+                
+            m_scene->unlock();
+        }
+    }
+
     MeshHandle SceneManager::getOrCreateMeshHandle(const std::string& mesh_file)
     {
         auto find_it = m_mesh_handle_map.find(mesh_file);
@@ -883,6 +904,19 @@ namespace Pilot
         }
 
         return iter->second;
+    }
+    
+    const size_t SceneManager::getMeshIDByGObjectID(size_t go_id) const
+    {
+        for (const auto& pair : m_mesh_id_gobejct_id_map)
+        {
+            if (pair.second == go_id)
+            {
+                return pair.first;
+            }
+        }
+
+        return PILOT_INVALID_MESH_INSTANCE_ID;
     }
 
 } // namespace Pilot

@@ -38,7 +38,8 @@ namespace Pilot
         VkPhysicalDevice   _physical_device = VK_NULL_HANDLE;
         QueueFamilyIndices _queue_indices;
         VkDevice           _device             = VK_NULL_HANDLE;
-        VkFormat           _depth_image_format = VK_FORMAT_UNDEFINED;
+        // VkFormat           _depth_image_format = VK_FORMAT_UNDEFINED;
+        VkFormat           _depth_stencil_image_format = VK_FORMAT_UNDEFINED;
         VkQueue            _graphics_queue     = VK_NULL_HANDLE;
         VkQueue            _present_queue      = VK_NULL_HANDLE;
         VkCommandPool      _command_pool       = VK_NULL_HANDLE;
@@ -48,10 +49,10 @@ namespace Pilot
         VkExtent2D               _swapchain_extent;
         std::vector<VkImage>     _swapchain_images;
         std::vector<VkImageView> _swapchain_imageviews;
-
-        VkImage        _depth_image        = VK_NULL_HANDLE;
-        VkDeviceMemory _depth_image_memory = VK_NULL_HANDLE;
-        VkImageView    _depth_image_view   = VK_NULL_HANDLE;
+        
+        VkImage        _depth_stencil_image        = VK_NULL_HANDLE;
+        VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
+        VkImageView    _depth_stencil_image_view   = VK_NULL_HANDLE;
 
         std::vector<VkFramebuffer> _swapchain_framebuffers;
 
@@ -127,6 +128,7 @@ namespace Pilot
         SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice physical_device);
 
         VkFormat findDepthFormat();
+        VkFormat findDepthStencilFormat();
         VkFormat findSupportedFormat(const std::vector<VkFormat>& candidates,
                                      VkImageTiling                tiling,
                                      VkFormatFeatureFlags         features);

@@ -42,6 +42,7 @@ void Pilot::PVulkanManager::prepareContext()
     PRenderPassBase::m_visiable_nodes.p_point_lights_visible_mesh_nodes      = &m_point_lights_visible_mesh_nodes;
     PRenderPassBase::m_visiable_nodes.p_main_camera_visible_mesh_nodes       = &m_main_camera_visible_mesh_nodes;
     PRenderPassBase::m_visiable_nodes.p_axis_node                            = &m_axis_node;
+    PRenderPassBase::m_visiable_nodes.p_selected_mesh_node                    = &m_selected_mesh_node;
     PRenderPassBase::m_visiable_nodes.p_main_camera_visible_particlebillboard_nodes =
         &m_main_camera_visible_particlebillboard_nodes;
 }

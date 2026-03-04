@@ -40,6 +40,19 @@ namespace Pilot
         void setupPipelines();
         void setupDescriptorSet();
     };
+    
+    class POutlinePass : public PRenderPassBase
+    {
+    public:
+        void initialize(VkRenderPass render_pass);
+        void draw();
+
+        VkDescriptorSetLayout _global_mesh_layout;
+        VkDescriptorSetLayout _per_mesh_layout;
+        
+    private:
+        void setupPipelines();
+    };
 
     class PUIPass : public PRenderPassBase
     {
@@ -79,7 +92,7 @@ namespace Pilot
         _main_camera_pass_gbuffer_c               = 2,
         _main_camera_pass_backup_buffer_odd       = 3,
         _main_camera_pass_backup_buffer_even      = 4,
-        _main_camera_pass_depth                   = 5,
+        _main_camera_pass_depth_stencil           = 5,
         _main_camera_pass_swap_chain_image        = 6,
         _main_camera_pass_custom_attachment_count = 5,
         _main_camera_pass_attachment_count        = 7,
@@ -92,6 +105,7 @@ namespace Pilot
         _main_camera_subpass_forward_lighting,
         _main_camera_subpass_tone_mapping,
         _main_camera_subpass_color_grading,
+        _main_camera_subpass_outline,
         _main_camera_subpass_ui,
         _main_camera_subpass_combine_ui,
         _main_camera_subpass_count

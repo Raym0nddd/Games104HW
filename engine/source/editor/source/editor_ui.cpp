@@ -113,7 +113,7 @@ namespace Pilot
                                               Math::cos(Math::degreesToRadians(degrees_val.x / 2));
                 trans_ptr->m_rotation.normalise();
 
-                drawSelectedEntityAxis();
+                drawSelectedEntity();
             }
         };
         m_editor_ui_creator["int"] = [this](std::string name, void* value_ptr) -> void {
@@ -279,7 +279,7 @@ namespace Pilot
             m_selected_object_matrix                      = transform_component->getMatrix();
         }
 
-        drawSelectedEntityAxis();
+        drawSelectedEntity();
 
         if (m_selected_gobject_id != PILOT_INVALID_GOBJECT_ID)
         {
@@ -665,7 +665,7 @@ namespace Pilot
                 if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
                 {
                     m_is_editor_mode = !m_is_editor_mode;
-                    drawSelectedEntityAxis();
+                    drawSelectedEntity();
                     g_is_editor_mode = false;
                     m_io->setFocusMode(true);
                 }
@@ -677,7 +677,7 @@ namespace Pilot
                 if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
                 {
                     m_is_editor_mode = !m_is_editor_mode;
-                    drawSelectedEntityAxis();
+                    drawSelectedEntity();
                     g_is_editor_mode = true;
                     SceneManager::getInstance().setMainViewMatrix(m_tmp_uistate->m_editor_camera->getViewMatrix());
                 }
@@ -810,6 +810,12 @@ namespace Pilot
             onGObjectSelected(new_gobject_id);
         }
     }
+    
+    void EditorUI::drawSelectedEntity()
+    {
+        drawSelectedEntityAxis();
+        drawSelectedEntityOutline();
+    }
 
     void EditorUI::drawSelectedEntityAxis()
     {
@@ -852,6 +858,12 @@ namespace Pilot
             std::vector<RenderMesh> axis_meshs;
             SceneManager::getInstance().setAxisMesh(axis_meshs);
         }
+    }
+    
+    void EditorUI::drawSelectedEntityOutline()
+    {
+        // no mater invalid or not
+        SceneManager::getInstance().setSelectedGoId(m_selected_gobject_id);
     }
 
     void EditorUI::updateCursorOnAxis(Vector2 cursor_uv)
