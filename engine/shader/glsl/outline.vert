@@ -1,9 +1,25 @@
 #version 310 es
 
-#include GL_GOOGLE_include_directive : enable
+#extension GL_GOOGLE_include_directive : enable
 
 #include "constants.h"
 #include "structures.h"
+
+struct DirectionalLight
+{
+    vec3  direction;
+    float _padding_direction;
+    vec3  color;
+    float _padding_color;
+};
+
+struct PointLight
+{
+    vec3  position;
+    float radius;
+    vec3  intensity;
+    float _padding_intensity;
+};
 
 layout(set = 0, binding = 0) readonly buffer _unused_name_perframe
 {
@@ -94,6 +110,6 @@ void main()
     }
 
     model_position += model_normal * outline_thickness;
-    out_world_position = (model_matrix * vec4(model_position, 1.0)).xyz;
-    gl_Position = proj_view_matrix * vec4(out_world_position, 1.0f);
+    vec3 world_position = (model_matrix * vec4(model_position, 1.0)).xyz;
+    gl_Position = proj_view_matrix * vec4(world_position, 1.0f);
 }

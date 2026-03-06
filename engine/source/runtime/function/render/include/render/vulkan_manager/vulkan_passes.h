@@ -47,10 +47,13 @@ namespace Pilot
         void initialize(VkRenderPass render_pass);
         void draw();
 
-        VkDescriptorSetLayout _global_mesh_layout;
         VkDescriptorSetLayout _per_mesh_layout;
         
+        MeshPerframeStorageBufferObject              m_mesh_perframe_storage_buffer_object;
+        
     private:
+        void setupDescriptorSetLayout();    // setup descriptor set for mesh related ring buffer range binding (alike global mesh descriptor layout in MainCamera Pass)
+        void setupDescriptorSet();      
         void setupPipelines();
     };
 
@@ -152,6 +155,7 @@ namespace Pilot
 
         void draw(PColorGradingPass& color_grading_pass,
                   PToneMappingPass&  tone_mapping_pass,
+                  POutlinePass&      outline_pass,
                   PUIPass&           ui_pass,
                   PCombineUIPass&    combine_ui_pass,
                   uint32_t           current_swapchain_image_index,

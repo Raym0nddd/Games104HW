@@ -221,7 +221,7 @@ namespace Pilot
         glm::mat4          joint_matrices[m_mesh_vertex_blending_max_joint_count];
         VulkanMesh*        ref_mesh     = NULL;
         VulkanPBRMaterial* ref_material = NULL;
-        size_t             node_id;
+        size_t             node_id      = PILOT_INVALID_MESH_INSTANCE_ID;
         bool               enable_vertex_blending = false;
     };
 

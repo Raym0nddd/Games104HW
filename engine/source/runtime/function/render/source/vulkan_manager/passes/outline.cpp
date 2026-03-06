@@ -12,18 +12,88 @@ namespace Pilot
     void POutlinePass::initialize(VkRenderPass render_pass)
     {
         _framebuffer.render_pass = render_pass;
+        setupDescriptorSetLayout();
         setupPipelines();
+        setupDescriptorSet();
+    }
+
+    void POutlinePass::setupDescriptorSetLayout()
+    {
+        _descriptor_infos.resize(1);
+        VkDescriptorSetLayoutBinding mesh_storage_buffer_layout_bindings[3];
+
+        VkDescriptorSetLayoutBinding& mesh_global_layout_perframe_storage_buffer_binding =
+            mesh_storage_buffer_layout_bindings[0];
+        mesh_global_layout_perframe_storage_buffer_binding.binding = 0;
+        mesh_global_layout_perframe_storage_buffer_binding.descriptorType =
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        mesh_global_layout_perframe_storage_buffer_binding.descriptorCount = 1;
+        mesh_global_layout_perframe_storage_buffer_binding.stageFlags =
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+        mesh_global_layout_perframe_storage_buffer_binding.pImmutableSamplers = NULL;
+
+        VkDescriptorSetLayoutBinding& mesh_global_layout_perdrawcall_storage_buffer_binding =
+            mesh_storage_buffer_layout_bindings[1];
+        mesh_global_layout_perdrawcall_storage_buffer_binding.binding = 1;
+        mesh_global_layout_perdrawcall_storage_buffer_binding.descriptorType =
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        mesh_global_layout_perdrawcall_storage_buffer_binding.descriptorCount = 1;
+        mesh_global_layout_perdrawcall_storage_buffer_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        mesh_global_layout_perdrawcall_storage_buffer_binding.pImmutableSamplers = NULL;
+
+        VkDescriptorSetLayoutBinding& mesh_global_layout_per_drawcall_vertex_blending_storage_buffer_binding =
+            mesh_storage_buffer_layout_bindings[2];
+        mesh_global_layout_per_drawcall_vertex_blending_storage_buffer_binding.binding = 2;
+        mesh_global_layout_per_drawcall_vertex_blending_storage_buffer_binding.descriptorType =
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        mesh_global_layout_per_drawcall_vertex_blending_storage_buffer_binding.descriptorCount = 1;
+        mesh_global_layout_per_drawcall_vertex_blending_storage_buffer_binding.stageFlags =
+            VK_SHADER_STAGE_VERTEX_BIT;
+        mesh_global_layout_per_drawcall_vertex_blending_storage_buffer_binding.pImmutableSamplers = NULL;
+        
+        VkDescriptorSetLayoutCreateInfo mesh_global_layout_create_info;
+        mesh_global_layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        mesh_global_layout_create_info.pNext = NULL;
+        mesh_global_layout_create_info.flags = 0;
+        mesh_global_layout_create_info.bindingCount =
+            (sizeof(mesh_storage_buffer_layout_bindings) / sizeof(mesh_storage_buffer_layout_bindings[0]));
+        mesh_global_layout_create_info.pBindings = mesh_storage_buffer_layout_bindings;
+        
+        if (VK_SUCCESS != vkCreateDescriptorSetLayout(m_p_vulkan_context->_device,
+                                              &mesh_global_layout_create_info,
+                                              NULL,
+                                              &_descriptor_infos[0].layout))
+        {
+            throw std::runtime_error("create mesh global layout");
+        }
+    }
+
+    void POutlinePass::setupDescriptorSet()
+    {
+        VkDescriptorSetAllocateInfo mesh_global_descriptor_set_alloc_info;
+        mesh_global_descriptor_set_alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        mesh_global_descriptor_set_alloc_info.pNext = NULL;
+        mesh_global_descriptor_set_alloc_info.descriptorPool = m_descriptor_pool;
+        mesh_global_descriptor_set_alloc_info.descriptorSetCount = 1;
+        mesh_global_descriptor_set_alloc_info.pSetLayouts = &_descriptor_infos[0].layout;
+
+        if (VK_SUCCESS != vkAllocateDescriptorSets(m_p_vulkan_context->_device,
+                                                   &mesh_global_descriptor_set_alloc_info,
+                                                   &_descriptor_infos[0].descriptor_set))
+        {
+            throw std::runtime_error("[Outline Pass] allocate mesh global descriptor set");
+        }
     }
 
     void POutlinePass::setupPipelines()
     {
         _render_pipelines.resize(1);
 
-        VkDescriptorSetLayout      descriptorset_layouts[2] = {_global_mesh_layout, _per_mesh_layout};
-        VkPipelineLayoutCreateInfo pipeline_layout_create_info {};
-        pipeline_layout_create_info.sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipeline_layout_create_info.setLayoutCount = 1;
-        pipeline_layout_create_info.pSetLayouts    = descriptorset_layouts;
+        VkDescriptorSetLayout descriptorset_layouts[2] = {_descriptor_infos[0].layout, _per_mesh_layout};
+        VkPipelineLayoutCreateInfo pipeline_layout_create_info{};
+        pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipeline_layout_create_info.setLayoutCount = 2;
+        pipeline_layout_create_info.pSetLayouts = descriptorset_layouts;
 
         if (vkCreatePipelineLayout(
                 m_p_vulkan_context->_device, &pipeline_layout_create_info, nullptr, &_render_pipelines[0].layout) !=
@@ -33,124 +103,126 @@ namespace Pilot
         }
 
         VkShaderModule vert_shader_module =
-            PVulkanUtil::createShaderModule(m_p_vulkan_context->_device, POST_PROCESS_VERT);
+            PVulkanUtil::createShaderModule(m_p_vulkan_context->_device, OUTLINE_VERT);
         VkShaderModule frag_shader_module =
-            PVulkanUtil::createShaderModule(m_p_vulkan_context->_device, TONE_MAPPING_FRAG);
+            PVulkanUtil::createShaderModule(m_p_vulkan_context->_device, OUTLINE_FRAG);
 
-        VkPipelineShaderStageCreateInfo vert_pipeline_shader_stage_create_info {};
-        vert_pipeline_shader_stage_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vert_pipeline_shader_stage_create_info.stage  = VK_SHADER_STAGE_VERTEX_BIT;
+        VkPipelineShaderStageCreateInfo vert_pipeline_shader_stage_create_info{};
+        vert_pipeline_shader_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        vert_pipeline_shader_stage_create_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
         vert_pipeline_shader_stage_create_info.module = vert_shader_module;
-        vert_pipeline_shader_stage_create_info.pName  = "main";
+        vert_pipeline_shader_stage_create_info.pName = "main";
 
-        VkPipelineShaderStageCreateInfo frag_pipeline_shader_stage_create_info {};
-        frag_pipeline_shader_stage_create_info.sType  = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        frag_pipeline_shader_stage_create_info.stage  = VK_SHADER_STAGE_FRAGMENT_BIT;
+        VkPipelineShaderStageCreateInfo frag_pipeline_shader_stage_create_info{};
+        frag_pipeline_shader_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        frag_pipeline_shader_stage_create_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
         frag_pipeline_shader_stage_create_info.module = frag_shader_module;
-        frag_pipeline_shader_stage_create_info.pName  = "main";
+        frag_pipeline_shader_stage_create_info.pName = "main";
 
-        VkPipelineShaderStageCreateInfo shader_stages[] = {vert_pipeline_shader_stage_create_info,
-                                                           frag_pipeline_shader_stage_create_info};
+        VkPipelineShaderStageCreateInfo shader_stages[] = {
+            vert_pipeline_shader_stage_create_info,
+            frag_pipeline_shader_stage_create_info
+        };
 
-        auto vertex_binding_descriptions   = PMeshVertex::getBindingDescriptions();
+        auto vertex_binding_descriptions = PMeshVertex::getBindingDescriptions();
         auto vertex_attribute_descriptions = PMeshVertex::getAttributeDescriptions();
-        VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info {};
+        VkPipelineVertexInputStateCreateInfo vertex_input_state_create_info{};
         vertex_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        vertex_input_state_create_info.vertexBindingDescriptionCount   = vertex_binding_descriptions.size();
-        vertex_input_state_create_info.pVertexBindingDescriptions      = &vertex_binding_descriptions[0];
+        vertex_input_state_create_info.vertexBindingDescriptionCount = vertex_binding_descriptions.size();
+        vertex_input_state_create_info.pVertexBindingDescriptions = &vertex_binding_descriptions[0];
         vertex_input_state_create_info.vertexAttributeDescriptionCount = vertex_attribute_descriptions.size();
-        vertex_input_state_create_info.pVertexAttributeDescriptions    = &vertex_attribute_descriptions[0];
+        vertex_input_state_create_info.pVertexAttributeDescriptions = &vertex_attribute_descriptions[0];
 
-        VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info {};
-        input_assembly_create_info.sType    = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        VkPipelineInputAssemblyStateCreateInfo input_assembly_create_info{};
+        input_assembly_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         input_assembly_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
         input_assembly_create_info.primitiveRestartEnable = VK_FALSE;
 
-        VkPipelineViewportStateCreateInfo viewport_state_create_info {};
-        viewport_state_create_info.sType         = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        VkPipelineViewportStateCreateInfo viewport_state_create_info{};
+        viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
         viewport_state_create_info.viewportCount = 1;
-        viewport_state_create_info.pViewports    = &m_command_info._viewport;
-        viewport_state_create_info.scissorCount  = 1;
-        viewport_state_create_info.pScissors     = &m_command_info._scissor;
+        viewport_state_create_info.pViewports = &m_command_info._viewport;
+        viewport_state_create_info.scissorCount = 1;
+        viewport_state_create_info.pScissors = &m_command_info._scissor;
 
-        VkPipelineRasterizationStateCreateInfo rasterization_state_create_info {};
+        VkPipelineRasterizationStateCreateInfo rasterization_state_create_info{};
         rasterization_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterization_state_create_info.depthClampEnable        = VK_FALSE;
+        rasterization_state_create_info.depthClampEnable = VK_FALSE;
         rasterization_state_create_info.rasterizerDiscardEnable = VK_FALSE;
-        rasterization_state_create_info.polygonMode             = VK_POLYGON_MODE_FILL;
-        rasterization_state_create_info.lineWidth               = 1.0f;
-        rasterization_state_create_info.cullMode                = VK_CULL_MODE_BACK_BIT;
-        rasterization_state_create_info.frontFace               = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        rasterization_state_create_info.depthBiasEnable         = VK_FALSE;
+        rasterization_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterization_state_create_info.lineWidth = 1.0f;
+        rasterization_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterization_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterization_state_create_info.depthBiasEnable = VK_FALSE;
         rasterization_state_create_info.depthBiasConstantFactor = 0.0f;
-        rasterization_state_create_info.depthBiasClamp          = 0.0f;
-        rasterization_state_create_info.depthBiasSlopeFactor    = 0.0f;
+        rasterization_state_create_info.depthBiasClamp = 0.0f;
+        rasterization_state_create_info.depthBiasSlopeFactor = 0.0f;
 
-        VkPipelineMultisampleStateCreateInfo multisample_state_create_info {};
+        VkPipelineMultisampleStateCreateInfo multisample_state_create_info{};
         multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisample_state_create_info.sampleShadingEnable  = VK_FALSE;
+        multisample_state_create_info.sampleShadingEnable = VK_FALSE;
         multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        VkPipelineColorBlendAttachmentState color_blend_attachment_state {};
+        VkPipelineColorBlendAttachmentState color_blend_attachment_state{};
         color_blend_attachment_state.colorWriteMask =
             VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        color_blend_attachment_state.blendEnable         = VK_FALSE;
+        color_blend_attachment_state.blendEnable = VK_FALSE;
         color_blend_attachment_state.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
         color_blend_attachment_state.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
-        color_blend_attachment_state.colorBlendOp        = VK_BLEND_OP_ADD;
+        color_blend_attachment_state.colorBlendOp = VK_BLEND_OP_ADD;
         color_blend_attachment_state.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
         color_blend_attachment_state.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        color_blend_attachment_state.alphaBlendOp        = VK_BLEND_OP_ADD;
+        color_blend_attachment_state.alphaBlendOp = VK_BLEND_OP_ADD;
 
-        VkPipelineColorBlendStateCreateInfo color_blend_state_create_info {};
-        color_blend_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        color_blend_state_create_info.logicOpEnable     = VK_FALSE;
-        color_blend_state_create_info.logicOp           = VK_LOGIC_OP_COPY;
-        color_blend_state_create_info.attachmentCount   = 1;
-        color_blend_state_create_info.pAttachments      = &color_blend_attachment_state;
+        VkPipelineColorBlendStateCreateInfo color_blend_state_create_info{};
+        color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        color_blend_state_create_info.logicOpEnable = VK_FALSE;
+        color_blend_state_create_info.logicOp = VK_LOGIC_OP_COPY;
+        color_blend_state_create_info.attachmentCount = 1;
+        color_blend_state_create_info.pAttachments = &color_blend_attachment_state;
         color_blend_state_create_info.blendConstants[0] = 0.0f;
         color_blend_state_create_info.blendConstants[1] = 0.0f;
         color_blend_state_create_info.blendConstants[2] = 0.0f;
         color_blend_state_create_info.blendConstants[3] = 0.0f;
 
-        VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info {};
-        depth_stencil_create_info.sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depth_stencil_create_info.depthTestEnable       = VK_TRUE;
-        depth_stencil_create_info.depthWriteEnable      = VK_FALSE;
-        depth_stencil_create_info.depthCompareOp        = VK_COMPARE_OP_LESS;
+        VkPipelineDepthStencilStateCreateInfo depth_stencil_create_info{};
+        depth_stencil_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depth_stencil_create_info.depthTestEnable = VK_TRUE;
+        depth_stencil_create_info.depthWriteEnable = VK_FALSE;
+        depth_stencil_create_info.depthCompareOp = VK_COMPARE_OP_LESS;
         depth_stencil_create_info.depthBoundsTestEnable = VK_FALSE;
-        depth_stencil_create_info.stencilTestEnable     = VK_TRUE;
-        depth_stencil_create_info.front.compareOp        = VK_COMPARE_OP_GREATER;
-        depth_stencil_create_info.front.reference        = 0;
-        depth_stencil_create_info.front.compareMask      = 0xFF;
-        depth_stencil_create_info.front.failOp           = VK_STENCIL_OP_KEEP;
-        depth_stencil_create_info.front.passOp           = VK_STENCIL_OP_KEEP;
-        depth_stencil_create_info.front.depthFailOp      = VK_STENCIL_OP_KEEP;
+        depth_stencil_create_info.stencilTestEnable = VK_TRUE;
+        depth_stencil_create_info.front.compareOp = VK_COMPARE_OP_EQUAL;
+        depth_stencil_create_info.front.reference = 0;
+        depth_stencil_create_info.front.compareMask = 0xFF;
+        depth_stencil_create_info.front.failOp = VK_STENCIL_OP_KEEP;
+        depth_stencil_create_info.front.passOp = VK_STENCIL_OP_KEEP;
+        depth_stencil_create_info.front.depthFailOp = VK_STENCIL_OP_KEEP;
         depth_stencil_create_info.back = depth_stencil_create_info.front;
 
         VkDynamicState dynamic_states[] = {VK_DYNAMIC_STATE_VIEWPORT, VK_DYNAMIC_STATE_SCISSOR};
 
-        VkPipelineDynamicStateCreateInfo dynamic_state_create_info {};
-        dynamic_state_create_info.sType             = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        VkPipelineDynamicStateCreateInfo dynamic_state_create_info{};
+        dynamic_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         dynamic_state_create_info.dynamicStateCount = 2;
-        dynamic_state_create_info.pDynamicStates    = dynamic_states;
+        dynamic_state_create_info.pDynamicStates = dynamic_states;
 
-        VkGraphicsPipelineCreateInfo pipelineInfo {};
-        pipelineInfo.sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount          = 2;
-        pipelineInfo.pStages             = shader_stages;
-        pipelineInfo.pVertexInputState   = &vertex_input_state_create_info;
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = 2;
+        pipelineInfo.pStages = shader_stages;
+        pipelineInfo.pVertexInputState = &vertex_input_state_create_info;
         pipelineInfo.pInputAssemblyState = &input_assembly_create_info;
-        pipelineInfo.pViewportState      = &viewport_state_create_info;
+        pipelineInfo.pViewportState = &viewport_state_create_info;
         pipelineInfo.pRasterizationState = &rasterization_state_create_info;
-        pipelineInfo.pMultisampleState   = &multisample_state_create_info;
-        pipelineInfo.pColorBlendState    = &color_blend_state_create_info;
-        pipelineInfo.pDepthStencilState  = &depth_stencil_create_info;
-        pipelineInfo.layout              = _render_pipelines[0].layout;
-        pipelineInfo.renderPass          = _framebuffer.render_pass;
-        pipelineInfo.subpass             = _main_camera_subpass_tone_mapping;
-        pipelineInfo.basePipelineHandle  = VK_NULL_HANDLE;
-        pipelineInfo.pDynamicState       = &dynamic_state_create_info;
+        pipelineInfo.pMultisampleState = &multisample_state_create_info;
+        pipelineInfo.pColorBlendState = &color_blend_state_create_info;
+        pipelineInfo.pDepthStencilState = &depth_stencil_create_info;
+        pipelineInfo.layout = _render_pipelines[0].layout;
+        pipelineInfo.renderPass = _framebuffer.render_pass;
+        pipelineInfo.subpass = _main_camera_subpass_outline;
+        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+        pipelineInfo.pDynamicState = &dynamic_state_create_info;
 
         if (vkCreateGraphicsPipelines(m_p_vulkan_context->_device,
                                       VK_NULL_HANDLE,
@@ -168,27 +240,170 @@ namespace Pilot
 
     void POutlinePass::draw()
     {
+        struct PMeshNode
+        {
+            glm::mat4 model_matrix;
+            glm::mat4 joint_matrices[m_mesh_vertex_blending_max_joint_count];
+            bool enable_vertex_blending;
+        };
+
+        // construct MeshNode based on selected mesh node
+        PVulkanMeshNode* selected_mesh_node = m_visiable_nodes.p_selected_mesh_node;
+        if (selected_mesh_node->node_id == PILOT_INVALID_MESH_INSTANCE_ID)
+            return;
+        
+        PMeshNode draw_node;
+        draw_node.model_matrix = selected_mesh_node->model_matrix;
+        draw_node.enable_vertex_blending = selected_mesh_node->enable_vertex_blending;
+        if (draw_node.enable_vertex_blending)
+        {
+            for (uint32_t i = 0; i < m_mesh_vertex_blending_max_joint_count; ++i)
+            {
+                draw_node.joint_matrices[i] = selected_mesh_node->joint_matrices[i];
+            }
+        }
+
         if (m_render_config._enable_debug_untils_label)
         {
             VkDebugUtilsLabelEXT label_info = {
-                VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT, NULL, "Tone Map", {1.0f, 1.0f, 1.0f, 1.0f}};
+                VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT, NULL, "Outline", {1.0f, 1.0f, 1.0f, 1.0f}
+            };
             m_p_vulkan_context->_vkCmdBeginDebugUtilsLabelEXT(m_command_info._current_command_buffer, &label_info);
         }
 
-        m_p_vulkan_context->_vkCmdBindPipeline(
-            m_command_info._current_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _render_pipelines[0].pipeline);
+        // bind pipeline and set dynamic states
+        m_p_vulkan_context->_vkCmdBindPipeline(m_command_info._current_command_buffer,
+                                               VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                               _render_pipelines[0].pipeline);
         m_p_vulkan_context->_vkCmdSetViewport(m_command_info._current_command_buffer, 0, 1, &m_command_info._viewport);
         m_p_vulkan_context->_vkCmdSetScissor(m_command_info._current_command_buffer, 0, 1, &m_command_info._scissor);
+
+        // 1. bind mesh blending (weights) descriptor set
+        VulkanMesh& mesh = *(selected_mesh_node->ref_mesh);
+        m_p_vulkan_context->_vkCmdBindDescriptorSets(
+            m_command_info._current_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            _render_pipelines[0].layout,
+            1,
+            1,
+            &mesh.mesh_vertex_blending_descriptor_set,
+            0,
+            NULL);
+
+        // 2.bind mesh vertex buffer and index buffer
+        VkBuffer vertex_buffers[] = {
+            mesh.mesh_vertex_position_buffer,
+            mesh.mesh_vertex_varying_enable_blending_buffer,
+            mesh.mesh_vertex_varying_buffer
+        };
+        VkDeviceSize offsets[] = {0, 0, 0};
+        m_p_vulkan_context->_vkCmdBindVertexBuffers(m_command_info._current_command_buffer,
+                                                    0,
+                                                    (sizeof(vertex_buffers) / sizeof(vertex_buffers[0])),
+                                                    vertex_buffers,
+                                                    offsets);
+        m_p_vulkan_context->_vkCmdBindIndexBuffer(
+            m_command_info._current_command_buffer, mesh.mesh_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+        // 3.calculate perframe storage buffer offset (use ring buffer to avoid)
+        uint32_t perframe_dynamic_offset =
+            roundUp(m_p_global_render_resource->_storage_buffer
+                                              ._global_upload_ringbuffers_end[m_command_info._current_frame_index],
+                    m_p_global_render_resource->_storage_buffer._min_storage_buffer_offset_alignment);
+
+        m_p_global_render_resource->_storage_buffer
+                                  ._global_upload_ringbuffers_end[m_command_info._current_frame_index] =
+            perframe_dynamic_offset + sizeof(MeshPerframeStorageBufferObject);
+        assert(m_p_global_render_resource->_storage_buffer
+            ._global_upload_ringbuffers_end[m_command_info._current_frame_index] <=
+            (m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_begin[m_command_info._current_frame_index] +
+                m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_size[m_command_info._current_frame_index]));
+
+        (*reinterpret_cast<MeshPerframeStorageBufferObject*>(
+            reinterpret_cast<uintptr_t>(
+                m_p_global_render_resource->_storage_buffer._global_upload_ringbuffer_memory_pointer) +
+            perframe_dynamic_offset)) = m_mesh_perframe_storage_buffer_object;
+
+        // 4.calculate per drawcall storage buffer offset (per instance model matrix)
+        uint32_t perdrawcall_dynamic_offset =
+            roundUp(m_p_global_render_resource->_storage_buffer
+                                              ._global_upload_ringbuffers_end[m_command_info._current_frame_index],
+                    m_p_global_render_resource->_storage_buffer._min_storage_buffer_offset_alignment);
+        m_p_global_render_resource->_storage_buffer
+                                  ._global_upload_ringbuffers_end[m_command_info._current_frame_index] =
+            perdrawcall_dynamic_offset + sizeof(MeshPerdrawcallStorageBufferObject);
+        assert(m_p_global_render_resource->_storage_buffer
+            ._global_upload_ringbuffers_end[m_command_info._current_frame_index] <=
+            (m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_begin[m_command_info._current_frame_index] +
+                m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_size[m_command_info._current_frame_index]));
+
+        MeshPerdrawcallStorageBufferObject& perdrawcall_storage_buffer_object =
+        (*reinterpret_cast<MeshPerdrawcallStorageBufferObject*>(
+            reinterpret_cast<uintptr_t>(m_p_global_render_resource->_storage_buffer
+                                                                  ._global_upload_ringbuffer_memory_pointer) +
+            perdrawcall_dynamic_offset));
+        perdrawcall_storage_buffer_object.mesh_instances[0].model_matrix = draw_node.model_matrix;
+        perdrawcall_storage_buffer_object.mesh_instances[0].enable_vertex_blending = draw_node.enable_vertex_blending
+            ? 1.0f
+            : -1.0f;
+
+        // 5.calculate per drawcall vertex blending storage buffer offset (animation skinning joint matrices)
+        uint32_t per_drawcall_vertex_blending_dynamic_offset = 0;
+        if (draw_node.enable_vertex_blending)
+        {
+            per_drawcall_vertex_blending_dynamic_offset = roundUp(
+                m_p_global_render_resource->_storage_buffer
+                                          ._global_upload_ringbuffers_end[m_command_info._current_frame_index],
+                m_p_global_render_resource->_storage_buffer._min_storage_buffer_offset_alignment);
+            m_p_global_render_resource->_storage_buffer
+                                      ._global_upload_ringbuffers_end[m_command_info._current_frame_index] =
+                per_drawcall_vertex_blending_dynamic_offset +
+                sizeof(MeshPerdrawcallVertexBlendingStorageBufferObject);
+            assert(m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_end[m_command_info._current_frame_index] <=
+                (m_p_global_render_resource->_storage_buffer
+                    ._global_upload_ringbuffers_begin[m_command_info._current_frame_index] +
+                    m_p_global_render_resource->_storage_buffer
+                    ._global_upload_ringbuffers_size[m_command_info._current_frame_index]));
+
+            MeshPerdrawcallVertexBlendingStorageBufferObject&
+                per_drawcall_vertex_blending_storage_buffer_object =
+                (*reinterpret_cast<MeshPerdrawcallVertexBlendingStorageBufferObject*>(
+                    reinterpret_cast<uintptr_t>(m_p_global_render_resource->_storage_buffer
+                                                                          ._global_upload_ringbuffer_memory_pointer) +
+                    per_drawcall_vertex_blending_dynamic_offset));
+
+            for (uint32_t j = 0; j < m_mesh_vertex_blending_max_joint_count; ++j)
+            {
+                per_drawcall_vertex_blending_storage_buffer_object.joint_matrices[j] = draw_node.joint_matrices[j];
+            }
+        }
+
+        // 5. bind descriptor set of dynamic buffer specific range using offsets above
+        uint32_t dynamic_offsets[] = {
+            perframe_dynamic_offset, perdrawcall_dynamic_offset, per_drawcall_vertex_blending_dynamic_offset
+        };
         m_p_vulkan_context->_vkCmdBindDescriptorSets(m_command_info._current_command_buffer,
                                                      VK_PIPELINE_BIND_POINT_GRAPHICS,
                                                      _render_pipelines[0].layout,
                                                      0,
                                                      1,
                                                      &_descriptor_infos[0].descriptor_set,
-                                                     0,
-                                                     NULL);
-
-        vkCmdDraw(m_command_info._current_command_buffer, 3, 1, 0, 0);
+                                                     3,
+                                                     dynamic_offsets);
+        
+        // 6. draw
+        m_p_vulkan_context->_vkCmdDrawIndexed(m_command_info._current_command_buffer,
+                                      mesh.mesh_index_count,
+                                      1,
+                                      0,
+                                      0,
+                                      0);
+        
 
         if (m_render_config._enable_debug_untils_label)
         {

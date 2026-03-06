@@ -53,6 +53,9 @@ namespace Pilot
         VkImage        _depth_stencil_image        = VK_NULL_HANDLE;
         VkDeviceMemory _depth_stencil_image_memory = VK_NULL_HANDLE;
         VkImageView    _depth_stencil_image_view   = VK_NULL_HANDLE;
+        // A depth-only view for descriptor reads (input attachment / sampling).
+        // Note: descriptor reads from depth/stencil formats must use either DEPTH or STENCIL aspect, not both.
+        VkImageView    _depth_image_view           = VK_NULL_HANDLE;
 
         std::vector<VkFramebuffer> _swapchain_framebuffers;
 

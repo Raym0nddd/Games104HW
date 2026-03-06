@@ -68,6 +68,8 @@ void Pilot::PVulkanManager::cullingAndSyncScene(class Scene&                scen
         m_main_camera_pass.m_particlebillboard_perframe_storage_buffer_object =
             m_particlebillboard_perframe_storage_buffer_object;
 
+        m_outline_pass.m_mesh_perframe_storage_buffer_object = m_mesh_perframe_storage_buffer_object;
+        
         m_directional_light_shadow_pass._mesh_directional_light_shadow_perframe_storage_buffer_object =
             m_mesh_directional_light_shadow_perframe_storage_buffer_object;
 

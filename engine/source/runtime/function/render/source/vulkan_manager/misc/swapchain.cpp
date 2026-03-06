@@ -33,6 +33,7 @@ bool Pilot::PVulkanManager::recreateSwapChain()
 
 void Pilot::PVulkanManager::clearSwapChain()
 {
+    vkDestroyImageView(m_vulkan_context._device, m_vulkan_context._depth_image_view, NULL);
     vkDestroyImageView(m_vulkan_context._device, m_vulkan_context._depth_stencil_image_view, NULL);
     vkDestroyImage(m_vulkan_context._device, m_vulkan_context._depth_stencil_image, NULL);
     vkFreeMemory(m_vulkan_context._device, m_vulkan_context._depth_stencil_image_memory, NULL);

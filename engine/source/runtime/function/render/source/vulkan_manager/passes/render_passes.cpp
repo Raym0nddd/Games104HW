@@ -34,7 +34,6 @@ bool Pilot::PVulkanManager::initializeRenderPass()
     m_color_grading_pass.initialize(m_main_camera_pass.getRenderPass(), m_main_camera_pass.getFramebufferImageViews()[_main_camera_pass_backup_buffer_even]);
 
     m_outline_pass._per_mesh_layout = descriptor_layouts[PMainCameraPass::LayoutType::_per_mesh];
-    m_outline_pass._global_mesh_layout = descriptor_layouts[PMainCameraPass::LayoutType::_mesh_global];
     m_outline_pass.initialize(m_main_camera_pass.getRenderPass());
     
     m_ui_pass.initialize(m_main_camera_pass.getRenderPass());

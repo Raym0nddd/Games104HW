@@ -280,18 +280,18 @@ namespace Pilot
         outline_pass_color_attachment_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
         VkAttachmentReference outline_pass_depth_stencil_attachment_reference {};
-        forward_lighting_pass_depth_attachment_reference.attachment = &depth_attachment_description - attachments;
-        forward_lighting_pass_depth_attachment_reference.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        outline_pass_depth_stencil_attachment_reference.attachment = &depth_attachment_description - attachments;
+        outline_pass_depth_stencil_attachment_reference.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
-        VkSubpassDescription& outline_pass = subpasses[_main_camera_subpass_forward_lighting];
-        forward_lighting_pass.pipelineBindPoint     = VK_PIPELINE_BIND_POINT_GRAPHICS;
-        forward_lighting_pass.inputAttachmentCount  = 0U;
-        forward_lighting_pass.pInputAttachments     = NULL;
-        forward_lighting_pass.colorAttachmentCount  = 1;
-        forward_lighting_pass.pColorAttachments       = &outline_pass_color_attachment_reference;
-        forward_lighting_pass.pDepthStencilAttachment = &outline_pass_depth_stencil_attachment_reference;
-        forward_lighting_pass.preserveAttachmentCount = 0;
-        forward_lighting_pass.pPreserveAttachments    = NULL;
+        VkSubpassDescription& outline_pass = subpasses[_main_camera_subpass_outline];
+        outline_pass.pipelineBindPoint     = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        outline_pass.inputAttachmentCount  = 0U;
+        outline_pass.pInputAttachments     = NULL;
+        outline_pass.colorAttachmentCount  = 1;
+        outline_pass.pColorAttachments       = &outline_pass_color_attachment_reference;
+        outline_pass.pDepthStencilAttachment = &outline_pass_depth_stencil_attachment_reference;
+        outline_pass.preserveAttachmentCount = 0;
+        outline_pass.pPreserveAttachments    = NULL;
 
         VkAttachmentReference ui_pass_color_attachment_reference {};
         ui_pass_color_attachment_reference.attachment = &backup_even_color_attachment_description - attachments;
@@ -408,7 +408,7 @@ namespace Pilot
             VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
         outline_pass_depend_on_color_grading_pass.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
-        // TODO: depend on outline pass
+        // depend on outline pass
         VkSubpassDependency& ui_pass_depend_on_color_grading_pass = dependencies[6];
         ui_pass_depend_on_color_grading_pass.srcSubpass           = _main_camera_subpass_outline;
         ui_pass_depend_on_color_grading_pass.dstSubpass           = _main_camera_subpass_ui;
@@ -2006,7 +2006,7 @@ namespace Pilot
         VkDescriptorImageInfo depth_stencil_input_attachment_info = {};
         depth_stencil_input_attachment_info.sampler =
             PVulkanUtil::getOrCreateNearestSampler(m_p_vulkan_context->_physical_device, m_p_vulkan_context->_device);
-        depth_stencil_input_attachment_info.imageView   = m_p_vulkan_context->_depth_stencil_image_view;
+        depth_stencil_input_attachment_info.imageView   = m_p_vulkan_context->_depth_image_view;
         depth_stencil_input_attachment_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
         VkWriteDescriptorSet deferred_lighting_descriptor_writes_info[4];
@@ -2128,6 +2128,7 @@ namespace Pilot
 
     void PMainCameraPass::draw(PColorGradingPass& color_grading_pass,
                                PToneMappingPass&  tone_mapping_pass,
+                               POutlinePass& outline_pass,
                                PUIPass&           ui_pass,
                                PCombineUIPass&    combine_ui_pass,
                                uint32_t           current_swapchain_image_index,
@@ -2211,6 +2212,11 @@ namespace Pilot
         color_grading_pass.draw();
 
         m_p_vulkan_context->_vkCmdNextSubpass(m_command_info._current_command_buffer, VK_SUBPASS_CONTENTS_INLINE);
+        
+        // draw outline
+        outline_pass.draw();
+        
+        m_p_vulkan_context->_vkCmdNextSubpass(m_command_info._current_command_buffer, VK_SUBPASS_CONTENTS_INLINE);
 
         VkClearAttachment clear_attachments[1];
         clear_attachments[0].aspectMask                  = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -2264,7 +2270,7 @@ namespace Pilot
             clear_values[_main_camera_pass_gbuffer_c].color          = {{0.0f, 0.0f, 0.0f, 0.0f}};
             clear_values[_main_camera_pass_backup_buffer_odd].color  = {{0.0f, 0.0f, 0.0f, 1.0f}};
             clear_values[_main_camera_pass_backup_buffer_even].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-            clear_values[_main_camera_pass_depth].depthStencil       = {1.0f, 0};
+            clear_values[_main_camera_pass_depth_stencil].depthStencil       = {1.0f, 0};
             clear_values[_main_camera_pass_swap_chain_image].color   = {{0.0f, 0.0f, 0.0f, 1.0f}};
             renderpass_begin_info.clearValueCount                    = (sizeof(clear_values) / sizeof(clear_values[0]));
             renderpass_begin_info.pClearValues                       = clear_values;

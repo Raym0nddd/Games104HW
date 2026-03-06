@@ -483,6 +483,15 @@ void Pilot::PVulkanContext::createFramebufferImageAndView()
                                                               VK_IMAGE_VIEW_TYPE_2D,
                                                               1,
                                                               1);
+
+    // For descriptor reads (input attachment / sampling), use a depth-only view.
+    _depth_image_view = PVulkanUtil::createImageView(_device,
+                                                     _depth_stencil_image,
+                                                     _depth_stencil_image_format,
+                                                     VK_IMAGE_ASPECT_DEPTH_BIT,
+                                                     VK_IMAGE_VIEW_TYPE_2D,
+                                                     1,
+                                                     1);
 }
 
 void Pilot::PVulkanContext::createSwapchainImageViews()
