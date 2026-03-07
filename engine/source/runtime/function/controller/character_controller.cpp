@@ -76,6 +76,7 @@ namespace Pilot
 
         hits.clear();
 
+        // [Raymond] TODO：complete side pass logic here
         // side pass
         //if (physics_scene->sweep(
         //    m_rigidbody_shape,

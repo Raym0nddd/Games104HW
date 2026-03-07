@@ -1,5 +1,7 @@
 #include "runtime/function/animation/pose.h"
 
+#include "glm/gtx/dual_quaternion.hpp"
+
 using namespace Pilot;
 
 AnimationPose::AnimationPose() { m_reorder = false; }
@@ -61,14 +63,17 @@ void AnimationPose::blend(const AnimationPose& pose)
         auto&       bone_trans_one = m_bone_poses[i];
         const auto& bone_trans_two = pose.m_bone_poses[i];
 
-        // float sum_weight =
-        // if (sum_weight != 0)
+        // finish animation blending here
+        float sum_weight = m_weight.m_blend_weight[i] + pose.m_weight.m_blend_weight[i];
+        if (sum_weight != 0)
         {
-            // float cur_weight =
-            // m_weight.m_blend_weight[i] =
-            // bone_trans_one.m_position  =
-            // bone_trans_one.m_scale     =
-            // bone_trans_one.m_rotation  =
+            float cur_weight = pose.m_weight.m_blend_weight[i];
+            float factor_two = cur_weight / sum_weight, factor_one = m_weight.m_blend_weight[i] / sum_weight;
+            bone_trans_one.m_position = bone_trans_two.m_position * factor_two + bone_trans_one.m_position * factor_one;
+            bone_trans_one.m_scale    = bone_trans_two.m_scale * factor_two + bone_trans_one.m_scale * factor_one;
+            bone_trans_one.m_rotation = Quaternion::sLerp(factor_two, bone_trans_one.m_rotation, bone_trans_two.m_rotation, true);
+            
+            m_weight.m_blend_weight[i] = sum_weight;
         }
     }
 }
