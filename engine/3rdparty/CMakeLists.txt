@@ -58,6 +58,10 @@ if(NOT TARGET Jolt)
 
     add_subdirectory(JoltPhysics/Build)
 
+    if(MSVC)
+        target_compile_options(Jolt PRIVATE /wd4668 /wd5266 /wd5267)
+    endif()
+
     if(ENABLE_PHYSICS_DEBUG_RENDERER)
         set_target_properties(Jolt TestFramework
             PROPERTIES 
