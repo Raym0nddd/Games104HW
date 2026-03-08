@@ -84,15 +84,18 @@ namespace Pilot
             horizontal_displacement.length(),
             hits))
         {
+            world_transform.m_position += std::max(hits[0].hit_distance - 0.1f, 0.0f) * horizontal_direction;   // move as close as possible to the hit point, with a small offset to avoid being stuck in the hit object
             Vector3 project_on_plane = horizontal_displacement - horizontal_displacement.dotProduct(hits[0].hit_normal)
                 * hits[0].hit_normal;
 
+            hits.clear();
+            float modified_displacement = project_on_plane.length();
             Vector3 modified_direction = project_on_plane.normalisedCopy();
             if (physics_scene->sweep(
                 m_rigidbody_shape,
                 world_transform.getMatrix(),
                 modified_direction,
-                project_on_plane.length(),
+                modified_displacement,
                 hits))
             {
                 final_position += std::max(hits[0].hit_distance - 0.1f, 0.0f) * modified_direction;
