@@ -196,7 +196,7 @@ namespace Pilot
                 break;
         }
         
-        LOG_INFO("AnimationFSM state transition: {} -> {}", static_cast<int>(last_state), static_cast<int>(m_state));
+        // LOG_INFO("AnimationFSM state transition: {} -> {}", static_cast<int>(last_state), static_cast<int>(m_state));
         return last_state != m_state;
     }
 

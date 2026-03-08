@@ -40,10 +40,10 @@ namespace Pilot
             Quaternion::IDENTITY,
             Vector3::UNIT_SCALE);
 
-        Vector3 vertical_displacement   = displacement.z * Vector3::UNIT_Z;
+        Vector3 vertical_displacement = displacement.z * Vector3::UNIT_Z;
         Vector3 horizontal_displacement = Vector3(displacement.x, displacement.y, 0.f);
 
-        Vector3 vertical_direction   = vertical_displacement.normalisedCopy();
+        Vector3 vertical_direction = vertical_displacement.normalisedCopy();
         Vector3 horizontal_direction = horizontal_displacement.normalisedCopy();
 
         Vector3 final_position = current_position;
@@ -56,7 +56,7 @@ namespace Pilot
             hits);
 
         hits.clear();
-        
+
         world_transform.m_position -= 0.1f * Vector3::UNIT_Z;
 
         // vertical pass
@@ -76,18 +76,33 @@ namespace Pilot
 
         hits.clear();
 
-        // [Raymond] TODO：complete side pass logic here
         // side pass
-        //if (physics_scene->sweep(
-        //    m_rigidbody_shape,
-        //    /**** [0] ****/,
-        //    /**** [1] ****/,
-        //    /**** [2] ****/,
-        //    hits))
-        //{
-        //    final_position += /**** [3] ****/;
-        //}
-        //else
+        if (physics_scene->sweep(
+            m_rigidbody_shape,
+            world_transform.getMatrix(),
+            horizontal_direction,
+            horizontal_displacement.length(),
+            hits))
+        {
+            Vector3 project_on_plane = horizontal_displacement - horizontal_displacement.dotProduct(hits[0].hit_normal)
+                * hits[0].hit_normal;
+
+            Vector3 modified_direction = project_on_plane.normalisedCopy();
+            if (physics_scene->sweep(
+                m_rigidbody_shape,
+                world_transform.getMatrix(),
+                modified_direction,
+                project_on_plane.length(),
+                hits))
+            {
+                final_position += std::max(hits[0].hit_distance - 0.1f, 0.0f) * modified_direction;
+            }
+            else
+            {
+                final_position += project_on_plane;
+            }
+        }
+        else
         {
             final_position += horizontal_displacement;
         }
