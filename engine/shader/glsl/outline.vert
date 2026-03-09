@@ -54,7 +54,7 @@ layout(set = 1, binding = 0) readonly buffer _unused_name_per_mesh_joint_binding
 layout(location = 0) in vec3 in_position; // for some types as dvec3 takes 2 locations
 layout(location = 1) in vec3 in_normal;
 
-const float outline_thickness = 0.02;
+const float outline_thickness = 0.1;
 
 void main()
 {

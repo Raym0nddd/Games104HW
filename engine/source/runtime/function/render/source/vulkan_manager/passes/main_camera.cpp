@@ -2355,6 +2355,10 @@ namespace Pilot
         // reorganize mesh
         for (PVulkanMeshNode& node : *(m_visiable_nodes.p_main_camera_visible_mesh_nodes))
         {
+            // selected mesh node will not render in instance mode, but in single drawcall mode for stencil writing
+            if (m_visiable_nodes.p_selected_mesh_node->node_id != PILOT_INVALID_MESH_INSTANCE_ID && node.node_id == m_visiable_nodes.p_selected_mesh_node->node_id)
+                continue;
+            
             auto& mesh_instanced = main_camera_mesh_drawcall_batch[node.ref_material];
             auto& mesh_nodes     = mesh_instanced[node.ref_mesh];
 
@@ -2469,12 +2473,11 @@ namespace Pilot
                                 (total_instance_count - drawcall_max_instance_count * drawcall_index) :
                                 drawcall_max_instance_count;
                         
-                        // FIXME: since InstanceDraw does not support different stencil reference for different instance, 
-                        // here we set stencil reference according to the first instance of current drawcall, which could bring some bugs
+                        // not selected mesh node, set stencil reference to 0
                         vkCmdSetStencilReference(
                             m_command_info._current_command_buffer,
                             VK_STENCIL_FRONT_AND_BACK, 
-                            mesh_nodes[0].node_id == m_visiable_nodes.p_selected_mesh_node->node_id ? 1 : 0
+                            0
                             );
 
                         // per drawcall storage buffer
@@ -2584,11 +2587,183 @@ namespace Pilot
                 }
             }
         }
+        
+        // draw selected mesh node for stencil writing
+        drawSelecedMeshGbufferAndStencil();
 
         if (m_render_config._enable_debug_untils_label)
         {
             m_p_vulkan_context->_vkCmdEndDebugUtilsLabelEXT(m_command_info._current_command_buffer);
         }
+    }
+
+    void PMainCameraPass::drawSelecedMeshGbufferAndStencil()
+    {
+        struct PMeshNode
+        {
+            glm::mat4 model_matrix;
+            glm::mat4 joint_matrices[m_mesh_vertex_blending_max_joint_count];
+            bool enable_vertex_blending;
+        };
+        
+        PVulkanMeshNode* selected_mesh_node = m_visiable_nodes.p_selected_mesh_node;
+        if (selected_mesh_node->node_id == PILOT_INVALID_MESH_INSTANCE_ID)
+            return;
+        
+        PMeshNode draw_node;
+        draw_node.model_matrix = selected_mesh_node->model_matrix;
+        draw_node.enable_vertex_blending = selected_mesh_node->enable_vertex_blending;
+        if (draw_node.enable_vertex_blending)
+        {
+            for (uint32_t i = 0; i < m_mesh_vertex_blending_max_joint_count; ++i)
+            {
+                draw_node.joint_matrices[i] = selected_mesh_node->joint_matrices[i];
+            }
+        }
+        // 0. bind material
+        VulkanPBRMaterial& material = *(selected_mesh_node->ref_material);
+        m_p_vulkan_context->_vkCmdBindDescriptorSets(m_command_info._current_command_buffer,
+                                             VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                             _render_pipelines[_render_pipeline_type_mesh_gbuffer].layout,
+                                             2,
+                                             1,
+                                             &material.material_descriptor_set,
+                                             0,
+                                             NULL);
+
+        // 1.bind pipeline and set dynamic states
+        vkCmdSetStencilReference(
+            m_command_info._current_command_buffer,
+            VK_STENCIL_FRONT_AND_BACK,
+            1
+        );
+
+        // 1. bind mesh blending (weights) descriptor set
+        VulkanMesh& mesh = *(selected_mesh_node->ref_mesh);
+        m_p_vulkan_context->_vkCmdBindDescriptorSets(
+            m_command_info._current_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            _render_pipelines[0].layout,
+            1,
+            1,
+            &mesh.mesh_vertex_blending_descriptor_set,
+            0,
+            NULL);
+
+        // 2.bind mesh vertex buffer and index buffer
+        VkBuffer vertex_buffers[] = {
+            mesh.mesh_vertex_position_buffer,
+            mesh.mesh_vertex_varying_enable_blending_buffer,
+            mesh.mesh_vertex_varying_buffer
+        };
+        VkDeviceSize offsets[] = {0, 0, 0};
+        m_p_vulkan_context->_vkCmdBindVertexBuffers(m_command_info._current_command_buffer,
+                                                    0,
+                                                    (sizeof(vertex_buffers) / sizeof(vertex_buffers[0])),
+                                                    vertex_buffers,
+                                                    offsets);
+        m_p_vulkan_context->_vkCmdBindIndexBuffer(
+            m_command_info._current_command_buffer, mesh.mesh_index_buffer, 0, VK_INDEX_TYPE_UINT16);
+
+        // 3.calculate perframe storage buffer offset (use ring buffer to avoid)
+        uint32_t perframe_dynamic_offset =
+            roundUp(m_p_global_render_resource->_storage_buffer
+                                              ._global_upload_ringbuffers_end[m_command_info._current_frame_index],
+                    m_p_global_render_resource->_storage_buffer._min_storage_buffer_offset_alignment);
+
+        m_p_global_render_resource->_storage_buffer
+                                  ._global_upload_ringbuffers_end[m_command_info._current_frame_index] =
+            perframe_dynamic_offset + sizeof(MeshPerframeStorageBufferObject);
+        assert(m_p_global_render_resource->_storage_buffer
+            ._global_upload_ringbuffers_end[m_command_info._current_frame_index] <=
+            (m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_begin[m_command_info._current_frame_index] +
+                m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_size[m_command_info._current_frame_index]));
+
+        (*reinterpret_cast<MeshPerframeStorageBufferObject*>(
+            reinterpret_cast<uintptr_t>(
+                m_p_global_render_resource->_storage_buffer._global_upload_ringbuffer_memory_pointer) +
+            perframe_dynamic_offset)) = m_mesh_perframe_storage_buffer_object;
+
+        // 4.calculate per drawcall storage buffer offset (per instance model matrix)
+        uint32_t perdrawcall_dynamic_offset =
+            roundUp(m_p_global_render_resource->_storage_buffer
+                                              ._global_upload_ringbuffers_end[m_command_info._current_frame_index],
+                    m_p_global_render_resource->_storage_buffer._min_storage_buffer_offset_alignment);
+        m_p_global_render_resource->_storage_buffer
+                                  ._global_upload_ringbuffers_end[m_command_info._current_frame_index] =
+            perdrawcall_dynamic_offset + sizeof(MeshPerdrawcallStorageBufferObject);
+        assert(m_p_global_render_resource->_storage_buffer
+            ._global_upload_ringbuffers_end[m_command_info._current_frame_index] <=
+            (m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_begin[m_command_info._current_frame_index] +
+                m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_size[m_command_info._current_frame_index]));
+
+        MeshPerdrawcallStorageBufferObject& perdrawcall_storage_buffer_object =
+        (*reinterpret_cast<MeshPerdrawcallStorageBufferObject*>(
+            reinterpret_cast<uintptr_t>(m_p_global_render_resource->_storage_buffer
+                                                                  ._global_upload_ringbuffer_memory_pointer) +
+            perdrawcall_dynamic_offset));
+        perdrawcall_storage_buffer_object.mesh_instances[0].model_matrix = draw_node.model_matrix;
+        perdrawcall_storage_buffer_object.mesh_instances[0].enable_vertex_blending = draw_node.enable_vertex_blending
+            ? 1.0f
+            : -1.0f;
+
+        // 5.calculate per drawcall vertex blending storage buffer offset (animation skinning joint matrices)
+        uint32_t per_drawcall_vertex_blending_dynamic_offset = 0;
+        if (draw_node.enable_vertex_blending)
+        {
+            per_drawcall_vertex_blending_dynamic_offset = roundUp(
+                m_p_global_render_resource->_storage_buffer
+                                          ._global_upload_ringbuffers_end[m_command_info._current_frame_index],
+                m_p_global_render_resource->_storage_buffer._min_storage_buffer_offset_alignment);
+            m_p_global_render_resource->_storage_buffer
+                                      ._global_upload_ringbuffers_end[m_command_info._current_frame_index] =
+                per_drawcall_vertex_blending_dynamic_offset +
+                sizeof(MeshPerdrawcallVertexBlendingStorageBufferObject);
+            assert(m_p_global_render_resource->_storage_buffer
+                ._global_upload_ringbuffers_end[m_command_info._current_frame_index] <=
+                (m_p_global_render_resource->_storage_buffer
+                    ._global_upload_ringbuffers_begin[m_command_info._current_frame_index] +
+                    m_p_global_render_resource->_storage_buffer
+                    ._global_upload_ringbuffers_size[m_command_info._current_frame_index]));
+
+            MeshPerdrawcallVertexBlendingStorageBufferObject&
+                per_drawcall_vertex_blending_storage_buffer_object =
+                (*reinterpret_cast<MeshPerdrawcallVertexBlendingStorageBufferObject*>(
+                    reinterpret_cast<uintptr_t>(m_p_global_render_resource->_storage_buffer
+                                                                          ._global_upload_ringbuffer_memory_pointer) +
+                    per_drawcall_vertex_blending_dynamic_offset));
+
+            for (uint32_t j = 0; j < m_mesh_vertex_blending_max_joint_count; ++j)
+            {
+                per_drawcall_vertex_blending_storage_buffer_object.joint_matrices[j] = draw_node.joint_matrices[j];
+            }
+        }
+
+        // 6. bind descriptor set of dynamic buffer specific range using offsets above
+        uint32_t dynamic_offsets[] = {
+            perframe_dynamic_offset, perdrawcall_dynamic_offset, per_drawcall_vertex_blending_dynamic_offset
+        };
+        m_p_vulkan_context->_vkCmdBindDescriptorSets(
+            m_command_info._current_command_buffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            _render_pipelines[_render_pipeline_type_mesh_gbuffer].layout,
+            0,
+            1,
+            &_descriptor_infos[_mesh_global].descriptor_set,
+            3,
+            dynamic_offsets);
+        
+        // 7. draw
+        m_p_vulkan_context->_vkCmdDrawIndexed(m_command_info._current_command_buffer,
+                                      mesh.mesh_index_count,
+                                      1,
+                                      0,
+                                      0,
+                                      0);
     }
 
     void PMainCameraPass::drawDeferredLighting()

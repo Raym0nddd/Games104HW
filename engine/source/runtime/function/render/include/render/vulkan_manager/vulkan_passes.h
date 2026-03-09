@@ -195,6 +195,7 @@ namespace Pilot
         void setupGbufferLightingDescriptorSet();
 
         void drawMeshGbuffer();
+        void drawSelecedMeshGbufferAndStencil();
         void drawDeferredLighting();
         void drawMeshLighting();
         void drawSkybox();
