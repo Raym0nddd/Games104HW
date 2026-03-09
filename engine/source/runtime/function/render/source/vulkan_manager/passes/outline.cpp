@@ -83,6 +83,67 @@ namespace Pilot
         {
             throw std::runtime_error("[Outline Pass] allocate mesh global descriptor set");
         }
+        
+        VkDescriptorBufferInfo mesh_perframe_storage_buffer_info = {};
+        // this offset plus dynamic_offset should not be greater than the size of the buffer
+        mesh_perframe_storage_buffer_info.offset = 0;
+        // the range means the size actually used by the shader per draw call
+        mesh_perframe_storage_buffer_info.range = sizeof(MeshPerframeStorageBufferObject);
+        mesh_perframe_storage_buffer_info.buffer =
+            m_p_global_render_resource->_storage_buffer._global_upload_ringbuffer;
+        assert(mesh_perframe_storage_buffer_info.range <
+               m_p_global_render_resource->_storage_buffer._max_storage_buffer_range);
+
+        VkDescriptorBufferInfo mesh_perdrawcall_storage_buffer_info = {};
+        mesh_perdrawcall_storage_buffer_info.offset                 = 0;
+        mesh_perdrawcall_storage_buffer_info.range                  = sizeof(MeshPerdrawcallStorageBufferObject);
+        mesh_perdrawcall_storage_buffer_info.buffer =
+            m_p_global_render_resource->_storage_buffer._global_upload_ringbuffer;
+        assert(mesh_perdrawcall_storage_buffer_info.range <
+               m_p_global_render_resource->_storage_buffer._max_storage_buffer_range);
+
+        VkDescriptorBufferInfo mesh_per_drawcall_vertex_blending_storage_buffer_info = {};
+        mesh_per_drawcall_vertex_blending_storage_buffer_info.offset                 = 0;
+        mesh_per_drawcall_vertex_blending_storage_buffer_info.range =
+            sizeof(MeshPerdrawcallVertexBlendingStorageBufferObject);
+        mesh_per_drawcall_vertex_blending_storage_buffer_info.buffer =
+            m_p_global_render_resource->_storage_buffer._global_upload_ringbuffer;
+        assert(mesh_per_drawcall_vertex_blending_storage_buffer_info.range <
+               m_p_global_render_resource->_storage_buffer._max_storage_buffer_range);
+        
+        VkWriteDescriptorSet mesh_descriptor_writes_info[3] = {};
+        mesh_descriptor_writes_info[0].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mesh_descriptor_writes_info[0].pNext           = NULL;
+        mesh_descriptor_writes_info[0].dstSet          = _descriptor_infos[0].descriptor_set;
+        mesh_descriptor_writes_info[0].dstBinding      = 0;
+        mesh_descriptor_writes_info[0].dstArrayElement = 0;
+        mesh_descriptor_writes_info[0].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        mesh_descriptor_writes_info[0].descriptorCount = 1;
+        mesh_descriptor_writes_info[0].pBufferInfo     = &mesh_perframe_storage_buffer_info;
+
+        mesh_descriptor_writes_info[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mesh_descriptor_writes_info[1].pNext           = NULL;
+        mesh_descriptor_writes_info[1].dstSet          = _descriptor_infos[0].descriptor_set;
+        mesh_descriptor_writes_info[1].dstBinding      = 1;
+        mesh_descriptor_writes_info[1].dstArrayElement = 0;
+        mesh_descriptor_writes_info[1].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        mesh_descriptor_writes_info[1].descriptorCount = 1;
+        mesh_descriptor_writes_info[1].pBufferInfo     = &mesh_perdrawcall_storage_buffer_info;
+
+        mesh_descriptor_writes_info[2].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        mesh_descriptor_writes_info[2].pNext           = NULL;
+        mesh_descriptor_writes_info[2].dstSet          = _descriptor_infos[0].descriptor_set;
+        mesh_descriptor_writes_info[2].dstBinding      = 2;
+        mesh_descriptor_writes_info[2].dstArrayElement = 0;
+        mesh_descriptor_writes_info[2].descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+        mesh_descriptor_writes_info[2].descriptorCount = 1;
+        mesh_descriptor_writes_info[2].pBufferInfo     = &mesh_per_drawcall_vertex_blending_storage_buffer_info;
+        
+        vkUpdateDescriptorSets(m_p_vulkan_context->_device,
+                               (sizeof(mesh_descriptor_writes_info) / sizeof(mesh_descriptor_writes_info[0])),
+                               mesh_descriptor_writes_info,
+                               0,
+                               NULL);
     }
 
     void POutlinePass::setupPipelines()
